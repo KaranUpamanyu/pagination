@@ -15,31 +15,38 @@ const users = [
   { id: 10, name: "Daisy" },
 ];
 
-app.get("/users", (req, res) => {
-  const page = parseInt(req.query.page);
-  const limit = parseInt(req.query.limit);
-  const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
+const paginateResults = (model) => {
+  return (req, res, next) => {
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
 
-  const results = {};
+    const results = {};
 
-  if (endIndex < users.length) {
-    results.next = {
-      page: page + 1,
-      limit: limit,
-    };
-  }
+    if (endIndex < model.length) {
+      results.next = {
+        page: page + 1,
+        limit: limit,
+      };
+    }
 
-  if (page > 1) {
-    results.prev = {
-      page: page - 1,
-      limit: limit,
-    };
-  }
+    if (page > 1) {
+      results.prev = {
+        page: page - 1,
+        limit: limit,
+      };
+    }
 
-  results.results = users.slice(startIndex, endIndex);
+    results.results = model.slice(startIndex, endIndex);
 
-  res.send(results);
+    res.paginatedResults = results;
+    next();
+  };
+};
+
+app.get("/users", paginateResults(users), (req, res) => {
+  res.send(res.paginatedResults);
 });
 
 app.listen(3000, (error) => {
