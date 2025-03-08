@@ -2,21 +2,33 @@ const express = require("express");
 
 const app = express();
 
-const users = [
-  { id: 1, name: "John" },
-  { id: 2, name: "Doe" },
-  { id: 3, name: "Smith" },
-  { id: 4, name: "Alex" },
-  { id: 5, name: "Tom" },
-  { id: 6, name: "Jerry" },
-  { id: 7, name: "Mickey" },
-  { id: 8, name: "Minnie" },
-  { id: 9, name: "Donald" },
-  { id: 10, name: "Daisy" },
-];
+const mongoose = require("mongoose");
+const User = require("./users");
+mongoose.connect("mongodb://localhost/pagination");
+const db = mongoose.connection;
+
+db.once("open", async () => {
+  if ((await User.countDocuments().exec()) > 0) {
+    return;
+  }
+
+  // Add users if there are none
+  Promise.all([
+    User.create({ name: "John" }),
+    User.create({ name: "Doe" }),
+    User.create({ name: "Karan" }),
+    User.create({ name: "Test" }),
+    User.create({ name: "Tom" }),
+    User.create({ name: "Jerry" }),
+    User.create({ name: "Mickey" }),
+    User.create({ name: "Minnie" }),
+    User.create({ name: "Donald" }),
+    User.create({ name: "Daisy" }),
+  ]).then(() => console.log("added some users"));
+});
 
 const paginateResults = (model) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const page = parseInt(req.query.page);
     const limit = parseInt(req.query.limit);
     const startIndex = (page - 1) * limit;
@@ -24,7 +36,7 @@ const paginateResults = (model) => {
 
     const results = {};
 
-    if (endIndex < model.length) {
+    if (endIndex < (await model.countDocuments().exec())) {
       results.next = {
         page: page + 1,
         limit: limit,
@@ -38,14 +50,17 @@ const paginateResults = (model) => {
       };
     }
 
-    results.results = model.slice(startIndex, endIndex);
-
-    res.paginatedResults = results;
-    next();
+    try {
+      results.results = await model.find().limit(limit).skip(startIndex);
+      res.paginatedResults = results;
+      next();
+    } catch (e) {
+      res.status(500).json({ message: e.message });
+    }
   };
 };
 
-app.get("/users", paginateResults(users), (req, res) => {
+app.get("/users", paginateResults(User), (req, res) => {
   res.send(res.paginatedResults);
 });
 
